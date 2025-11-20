@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowithOS Task Timeline Viewer</title>
+    <style>
+        :root {
+            /* Light Mode Palette */
+            --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 50%, #dbeafe 100%);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            
+            --primary: #6366f1; /* Indigo */
+            --primary-hover: #4f46e5;
+            --primary-light: rgba(99, 102, 241, 0.1);
+            
+            --success: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.1);
+            --error: #ef4444;
+            --error-bg: rgba(239, 68, 68, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            
+            --code-bg: #1e293b;
+            --code-text: #e2e8f0;
+            
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-sm: 8px;
+            
+            --header-height: 80px;
+        }
+
+        /* Dark Theme Overrides */
+        [data-theme="dark"] {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #172554 100%);
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            
+            --primary: #818cf8;
+            --primary-hover: #6366f1;
+            
+            --code-bg: #020617;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            margin: 0;
+            min-height: 100vh; /* Changed from height: 100vh */
+            overflow-y: auto;  /* Allow window scrolling */
+            transition: color 0.3s;
+        }
+
+        /* --- Glassmorphism Utilities --- */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        /* --- Layout --- */
+        
+        /* Header - Sticky */
+        header {
+            padding: 0 2rem;
+            height: var(--header-height);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+            border-bottom: 1px solid var(--glass-border);
+            position: sticky;
+            top: 0;
+            background: var(--glass-bg); /* Needs BG for sticky to hide content behind */
+            backdrop-filter: blur(12px);
+        }
+
+        .header-left h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+        .header-left p { margin: 0.25rem 0 0; color: var(--text-secondary); font-size: 0.875rem; }
+
+        .header-right { display: flex; gap: 1rem; align-items: center; }
+
+        /* Main Container - Flex Row, but Document Scroll */
+        #app-container {
+            display: flex;
+            align-items: flex-start; /* Align items to top for sticky sidebar */
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            min-height: calc(100vh - var(--header-height));
+        }
+
+        /* Sidebar - Sticky */
+        aside {
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            
+            /* Sticky Positioning */
+            position: sticky;
+            top: calc(var(--header-height) + 1.5rem);
+            height: calc(100vh - var(--header-height) - 3rem);
+            
+            /* Styling */
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden; /* Contains internal scroll */
+        }
+
+        .sidebar-controls {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.02);
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+        .search-box:focus { border-color: var(--primary); background: rgba(255,255,255,0.2); }
+
+        .filter-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+        .chip {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border);
+            padding: 0.35rem 0.75rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+        .chip:hover { background: rgba(255,255,255,0.2); color: var(--text-primary); }
+        .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .chip.active-error { background: var(--error); color: white; border-color: var(--error); }
+        .chip.active-file { background: var(--warning); color: white; border-color: var(--warning); }
+        .chip.active-think { background: #8b5cf6; color: white; border-color: #8b5cf6; }
+
+        #step-list { 
+            overflow-y: auto; 
+            flex: 1; 
+            padding: 1rem; 
+        }
+
+        .step-item {
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            border: 1px solid transparent;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.05);
+        }
+        .step-item:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+        .step-item.selected { 
+            background: var(--primary-light); 
+            border-color: var(--primary); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        /* Special styling for the Overview Item */
+        .step-item.overview {
+            border-left: 4px solid var(--primary);
+            background: rgba(255,255,255,0.02);
+        }
+        .step-item.overview.selected {
+            background: var(--primary-light);
+        }
+
+        .step-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .step-num { font-weight: 700; font-size: 0.8rem; color: var(--primary); opacity: 0.8; }
+        
+        .step-preview { 
+            font-size: 0.9rem; 
+            line-height: 1.4;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2; /* Standard property */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-left: 4px;
+            letter-spacing: 0.02em;
+        }
+        .badge-error { background: var(--error-bg); color: var(--error); }
+        .badge-file { background: var(--warning-bg); color: var(--warning); }
+        .badge-think { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+
+        /* --- Main Content Area --- */
+        main.content {
+            flex: 1;
+            min-width: 0; /* Prevents flex overflow issues */
+            height: auto; /* Allow natural growth */
+            overflow: visible; /* No internal scrollbar */
+        }
+
+        /* Drop Zone Area (Empty State) */
+        #drop-zone-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            border: 3px dashed var(--glass-border);
+            border-radius: var(--radius-lg);
+            transition: all 0.3s;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            margin-top: 0;
+        }
+
+        #drop-zone-container.drag-active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            transform: scale(0.99);
+        }
+
+        .upload-icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .upload-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .upload-subtitle { color: var(--text-secondary); margin-bottom: 2rem; }
+
+        .btn-upload {
+            background: var(--primary);
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-upload:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        /* Detail View Styles */
+        .detail-content-wrapper {
+            padding: 2rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .detail-header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem; }
+        .detail-step-id { font-size: 0.875rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        
+        .detail-title { 
+            font-size: 1.75rem; 
+            margin: 0; 
+            line-height: 1.3;
+        }
+        /* Truncation Logic */
+        .detail-title.collapsed {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2; 
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Show More Button for Title */
+        .title-expand-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            margin-top: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+        }
+        .title-expand-btn:hover { text-decoration: underline; }
+
+        .section-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--glass-border);
+            opacity: 0.5;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .card:hover { background: rgba(255,255,255,0.06); }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .card-title { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+
+        .status-success { color: var(--success); font-weight: 700; font-size: 0.85rem; background: var(--success-bg); padding: 4px 10px; border-radius: 6px; }
+        .status-error { color: var(--error); font-weight: 700; font-size: 0.85rem; background: var(--error-bg); padding: 4px 10px; border-radius: 6px; }
+        .status-pending { color: var(--warning); font-weight: 700; font-size: 0.85rem; background: var(--warning-bg); padding: 4px 10px; border-radius: 6px; }
+
+        /* Code/Text Content */
+        .text-content {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            color: var(--text-primary);
+            background: rgba(0,0,0,0.1); /* Slightly darker for contrast */
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            
+            /* Logic for expansion */
+            max-height: 300px;
+            overflow-y: auto;
+            transition: max-height 0.3s ease-out;
+        }
+
+        /* IMPORTANT: Override max-height when expanded */
+        .text-content.expanded { 
+            max-height: none !important; 
+            overflow: visible; 
+        }
+
+        /* Header Summary Bar */
+        #summary-bar {
+            background: transparent;
+            border-right: 1px solid var(--glass-border); /* Vertical separator style */
+            padding: 0 1.5rem;
+            display: none;
+            font-size: 0.85rem;
+        }
+        #summary-bar.active { display: flex; gap: 1.5rem; }
+        .stat-item { display: flex; flex-direction: column; min-width: max-content; }
+        .stat-label { color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-value { font-weight: 700; color: var(--text-primary); font-size: 1rem; margin-top: 2px; }
+
+        /* Theme Toggle */
+        .theme-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border);
+            color: var(--text-primary);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover { background: rgba(255,255,255,0.2); transform: rotate(15deg); }
+        .theme-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
+
+        /* Hidden Input */
+        #file-input { display: none; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #app-container { flex-direction: column; padding: 1rem; gap: 1rem; }
+            aside { width: 100%; height: auto; max-height: 300px; position: static; overflow-y: auto; margin-bottom: 1rem; }
+            main.content { width: 100%; }
+            header { padding: 0 1rem; }
+        }
+
+        /* Utility */
+        .raw-json-container { background: var(--code-bg); color: var(--code-text); padding: 1rem; border-radius: var(--radius-md); overflow-x: auto; margin-top: 1rem; display: none; }
+        .raw-json-container.visible { display: block; }
+        .expand-btn { background: none; border: none; color: var(--primary); font-weight: 600; cursor: pointer; margin-top: 0.5rem; font-size: 0.85rem; }
+        .expand-btn:hover { text-decoration: underline; }
+        
+        .table-clean { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .table-clean th { text-align: left; color: var(--text-secondary); font-weight: 600; padding: 0.75rem; border-bottom: 1px solid var(--glass-border); }
+        .table-clean td { padding: 0.75rem; border-bottom: 1px solid var(--glass-border); }
+
+        /* Banner */
+        #error-banner {
+            background: var(--error);
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        /* Nav Replace Button */
+        #replace-btn { display: none; font-size: 0.85rem; color: var(--text-secondary); background: transparent; border: 1px solid var(--glass-border); padding: 0.4rem 0.8rem; border-radius: 8px; cursor: pointer; margin-right: 1rem; }
+        #replace-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+        #replace-btn.visible { display: inline-block; }
+
+    </style>
+</head>
+<body>
+
+    <div id="error-banner"></div>
+
+    <header>
+        <div class="header-left">
+            <h1>FlowithOS Timeline</h1>
+            <p>Analyze your task history.</p>
+        </div>
+        <div class="header-right">
+            
+            <div id="summary-bar">
+                </div>
+
+            <button id="replace-btn" onclick="document.getElementById('file-input').click()">Replace File</button>
+            
+            <button class="theme-btn" id="theme-toggle" title="Toggle Theme">
+                <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </button>
+        </div>
+    </header>
+
+    <input type="file" id="file-input" accept=".json" />
+
+    <div id="app-container">
+        <aside id="sidebar">
+            <div class="sidebar-controls">
+                <input type="text" id="search-box" class="search-box" placeholder="Search steps..." disabled>
+                <div class="filter-chips">
+                    <span class="chip active" data-filter="all">All</span>
+                    <span class="chip" data-filter="error">Errors</span>
+                    <span class="chip" data-filter="write">Files</span>
+                    <span class="chip" data-filter="think">Thinking</span>
+                </div>
+            </div>
+            <div id="step-list">
+                <div style="padding:2rem; text-align:center; color:var(--text-secondary); font-size:0.9rem;">
+                    Waiting for file upload...
+                </div>
+            </div>
+        </aside>
+
+        <main class="content" id="main-content">
+            
+            <div id="drop-zone-container">
+                <svg class="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div class="upload-title">Upload Task History</div>
+                <div class="upload-subtitle">Drag & Drop your JSON file here or click to browse</div>
+                
+                <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right:8px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Select File
+                </button>
+            </div>
+
+            <div id="detail-view"></div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- State & Elements ---
+        let appState = {
+            rawJson: null,
+            processedSteps: [],
+            filter: 'all',
+            searchQuery: '',
+            selectedStepIndex: null
+        };
+
+        const dom = {
+            dropContainer: document.getElementById('drop-zone-container'),
+            fileInput: document.getElementById('file-input'),
+            themeToggle: document.getElementById('theme-toggle'),
+            errorBanner: document.getElementById('error-banner'),
+            summaryBar: document.getElementById('summary-bar'),
+            stepList: document.getElementById('step-list'),
+            detailView: document.getElementById('detail-view'),
+            searchBox: document.getElementById('search-box'),
+            chips: document.querySelectorAll('.chip'),
+            replaceBtn: document.getElementById('replace-btn'),
+            sidebar: document.getElementById('sidebar')
+        };
+
+        // --- Initialization ---
+        const savedTheme = localStorage.getItem('flowith-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // --- Event Listeners ---
+        dom.themeToggle.addEventListener('click', toggleTheme);
+        dom.fileInput.addEventListener('change', (e) => processFile(e.target.files[0]));
+        
+        // Search
+        dom.searchBox.addEventListener('input', (e) => {
+            appState.searchQuery = e.target.value.toLowerCase();
+            renderSidebar();
+        });
+
+        // Filters
+        dom.chips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                dom.chips.forEach(c => c.classList.remove('active', 'active-error', 'active-file', 'active-think'));
+                const filterType = chip.dataset.filter;
+                
+                if(filterType === 'error') chip.classList.add('active-error');
+                else if(filterType === 'write') chip.classList.add('active-file');
+                else if(filterType === 'think') chip.classList.add('active-think');
+                else chip.classList.add('active');
+
+                appState.filter = filterType;
+                renderSidebar();
+            });
+        });
+
+        // Drag & Drop Logic
+        const dragEvents = ['dragenter', 'dragover', 'dragleave', 'drop'];
+        dragEvents.forEach(evt => {
+            document.body.addEventListener(evt, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            document.body.addEventListener(evt, () => dom.dropContainer.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            document.body.addEventListener(evt, () => dom.dropContainer.classList.remove('drag-active'), false);
+        });
+
+        document.body.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            processFile(file);
+        });
+
+        // --- Logic ---
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('flowith-theme', next);
+        }
+
+        function processFile(file) {
+            if (!file) return;
+
+            showError(null);
+            dom.searchBox.disabled = true;
+            dom.stepList.innerHTML = '<div style="padding:2rem; text-align:center;">Parsing...</div>';
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    validateAndProcess(json);
+                    // UI Transition
+                    dom.dropContainer.style.display = 'none'; // Hide drop zone
+                    dom.replaceBtn.classList.add('visible'); // Show replace button
+                } catch (err) {
+                    showError(`Failed to parse JSON: ${err.message}`);
+                    dom.stepList.innerHTML = '<div style="padding:2rem; text-align:center; color:var(--error);">Parse Error</div>';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function validateAndProcess(json) {
+            if (!json || typeof json !== 'object') throw new Error("Invalid JSON");
+            
+            // Handle array root
+            if (Array.isArray(json)) {
+                 json = { history: json, instruction: "Unknown (History Only)", id: "unknown" };
+            } else if (!Array.isArray(json.history)) {
+                throw new Error("JSON missing 'history' array.");
+            }
+
+            appState.rawJson = json;
+            
+            // Process metadata
+            appState.processedSteps = (json.history || []).map((step, index) => {
+                const s = step || {};
+                const subgoal = (s.subgoal || "").toLowerCase();
+                const actions = Array.isArray(s.actions) ? s.actions : [];
+                const results = Array.isArray(s.results) ? s.results : [];
+
+                const isError = subgoal.includes("error") || 
+                                results.some(r => !r.success || (r.actionName === 'error')) ||
+                                actions.some(a => a.status === 'error');
+                
+                const hasDeepThinking = actions.some(a => a.type === 'deep_thinking') ||
+                                        results.some(r => r.actionName === 'deep_thinking');
+                
+                const hasWriteFile = actions.some(a => a.type === 'write_file') ||
+                                     results.some(r => r.actionName === 'write_file');
+
+                const searchableText = [
+                    s.subgoal,
+                    ...results.map(r => r.prompt || JSON.stringify(r)),
+                    ...actions.map(a => a.description || JSON.stringify(a))
+                ].join(' ').toLowerCase();
+
+                return {
+                    original: s,
+                    index: index,
+                    stepNumber: s.stepNumber || index + 1,
+                    isError,
+                    hasDeepThinking,
+                    hasWriteFile,
+                    searchableText
+                };
+            });
+
+            renderSummary();
+            dom.searchBox.disabled = false;
+            
+            // Set default selection to Overview (-1) to show instructions first
+            appState.selectedStepIndex = -1;
+            
+            renderSidebar();
+            renderTaskOverview(appState.rawJson); // Render overview by default
+        }
+
+        function renderSummary() {
+            const data = appState.rawJson;
+            const steps = appState.processedSteps;
+            const errCount = steps.filter(s => s.isError).length;
+            
+            dom.summaryBar.innerHTML = `
+                <div class="stat-item"><span class="stat-label">Task ID</span><span class="stat-value">${data.id || 'N/A'}</span></div>
+                <div class="stat-item"><span class="stat-label">Steps</span><span class="stat-value">${steps.length}</span></div>
+                <div class="stat-item"><span class="stat-label">Errors</span><span class="stat-value" style="color:${errCount>0? 'var(--error)' : 'inherit'}">${errCount}</span></div>
+            `;
+            dom.summaryBar.classList.add('active');
+        }
+
+        function renderSidebar() {
+            const { processedSteps, filter, searchQuery, selectedStepIndex } = appState;
+            dom.stepList.innerHTML = '';
+
+            // --- RENDER OVERVIEW ITEM FIRST ---
+            if (appState.rawJson) {
+                const overviewEl = document.createElement('div');
+                overviewEl.className = `step-item overview ${selectedStepIndex === -1 ? 'selected' : ''}`;
+                overviewEl.innerHTML = `
+                    <div class="step-header">
+                        <span class="step-num">TASK OVERVIEW</span>
+                    </div>
+                    <div class="step-preview">${escapeHtml(appState.rawJson.instruction || 'View task instructions')}</div>
+                `;
+                overviewEl.addEventListener('click', () => {
+                    appState.selectedStepIndex = -1;
+                    renderSidebar(); // Update highlights
+                    renderTaskOverview(appState.rawJson);
+                });
+                dom.stepList.appendChild(overviewEl);
+            }
+
+            // --- RENDER STEPS ---
+            const visibleSteps = processedSteps.filter(step => {
+                if (filter === 'error' && !step.isError) return false;
+                if (filter === 'write' && !step.hasWriteFile) return false;
+                if (filter === 'think' && !step.hasDeepThinking) return false;
+                if (searchQuery && !step.searchableText.includes(searchQuery)) return false;
+                return true;
+            });
+
+            if (visibleSteps.length === 0) {
+                const msg = document.createElement('div');
+                msg.style.padding = '1rem';
+                msg.style.textAlign = 'center';
+                msg.style.color = 'var(--text-secondary)';
+                msg.textContent = 'No steps match filters.';
+                dom.stepList.appendChild(msg);
+                return;
+            }
+
+            visibleSteps.forEach(step => {
+                const el = document.createElement('div');
+                el.className = `step-item ${step.index === selectedStepIndex ? 'selected' : ''}`;
+                
+                let badges = '';
+                if (step.isError) badges += `<span class="badge badge-error">ERR</span>`;
+                if (step.hasDeepThinking) badges += `<span class="badge badge-think">THINK</span>`;
+                if (step.hasWriteFile) badges += `<span class="badge badge-file">FILE</span>`;
+
+                el.innerHTML = `
+                    <div class="step-header">
+                        <span class="step-num">STEP ${step.stepNumber}</span>
+                        <span>${badges}</span>
+                    </div>
+                    <div class="step-preview">${step.original.subgoal || 'No description'}</div>
+                `;
+
+                el.addEventListener('click', () => {
+                    appState.selectedStepIndex = step.index;
+                    // Update selection visual
+                    document.querySelectorAll('.step-item').forEach(i => i.classList.remove('selected'));
+                    el.classList.add('selected');
+                    renderDetail(step.original);
+                });
+
+                dom.stepList.appendChild(el);
+            });
+        }
+
+        // New Function to render the Overview/Instruction details
+        function renderTaskOverview(data) {
+            const overviewId = `overview-${Date.now()}`;
+            
+            dom.detailView.innerHTML = `
+                <div class="detail-content-wrapper">
+                    <div class="detail-header">
+                        <div class="detail-step-id">TASK METADATA</div>
+                        <h2 class="detail-title">${escapeHtml(data.id || 'Unknown Task ID')}</h2>
+                    </div>
+                    
+                    ${renderSection('Full Instructions', renderCollapsibleText(data.instruction || 'No instruction provided.'))}
+                    
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-top:2rem;">
+                        <div class="card">
+                            <div class="card-header"><div class="card-title">Created At</div></div>
+                            <div style="padding:0 1.5rem 1.5rem;">${data.createdAt ? new Date(data.createdAt).toLocaleString() : 'N/A'}</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><div class="card-title">Agent Mode</div></div>
+                            <div style="padding:0 1.5rem 1.5rem;">${escapeHtml(data.userAgentMode || 'N/A')}</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:3rem;">
+                        <button class="expand-btn" onclick="document.getElementById('${overviewId}').classList.toggle('visible')">
+                            Show/Hide Raw Overview JSON
+                        </button>
+                        <div id="${overviewId}" class="raw-json-container">
+                            <pre style="white-space:pre-wrap; font-size:0.75rem;">${escapeHtml(JSON.stringify(data, (key, value) => (key === 'history' ? '[Steps Array]' : value), 2))}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDetail(step) {
+            const rawJsonID = `raw-${Date.now()}`;
+            const titleId = `title-${Date.now()}`;
+            
+            // Logic for title truncation
+            const subgoal = step.subgoal || "No Subgoal";
+            const isLong = subgoal.length > 80; 
+            
+            const titleHtml = `<h2 id="${titleId}" class="detail-title ${isLong ? 'collapsed' : ''}">${subgoal}</h2>`;
+            const btnHtml = isLong ? `<button class="title-expand-btn" onclick="toggleTitle('${titleId}', this)">Show More</button>` : '';
+
+            dom.detailView.innerHTML = `
+                <div class="detail-content-wrapper">
+                    <div class="detail-header">
+                        <div class="detail-step-id">Step #${step.stepNumber || '?'}</div>
+                        ${titleHtml}
+                        ${btnHtml}
+                    </div>
+
+                    ${renderSection('Results', renderResults(step.results))}
+                    ${renderSection('Actions', renderActions(step.actions))}
+                    ${renderSection('Files Produced', renderFiles(step.files))}
+                    
+                    <div style="margin-top:3rem;">
+                        <button class="expand-btn" onclick="document.getElementById('${rawJsonID}').classList.toggle('visible')">
+                            Show/Hide Raw JSON
+                        </button>
+                        <div id="${rawJsonID}" class="raw-json-container">
+                            <pre style="white-space:pre-wrap; font-size:0.75rem;">${escapeHtml(JSON.stringify(step, null, 2))}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSection(title, contentHtml) {
+            if(!contentHtml) return '';
+            return `<h3 class="section-title">${title}</h3><div>${contentHtml}</div>`;
+        }
+
+        function renderResults(results) {
+            if (!results || results.length === 0) return '';
+            return results.map(res => {
+                const successClass = res.success ? 'status-success' : 'status-error';
+                const successText = res.success ? 'Success' : 'Failed';
+                
+                let content = '';
+                if (res.prompt) content += `<strong>Prompt:</strong>${renderCollapsibleText(res.prompt)}`;
+                
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">${escapeHtml(res.actionName || 'Result')}</div>
+                            <div class="${successClass}">${successText}</div>
+                        </div>
+                        ${content}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderActions(actions) {
+            if (!actions || actions.length === 0) return '';
+            return actions.map(act => {
+                const type = act.type || 'Action';
+                const status = act.status || 'pending';
+                const actData = act.action || {};
+                
+                let details = '';
+                if (type === 'deep_thinking') {
+                    details = `<div style="margin-bottom:8px; font-weight:600;">Instructions:</div>${renderCollapsibleText(actData.deep_thinking?.instructions)}`;
+                } else if (type === 'write_file') {
+                    const wf = actData.write_file || {};
+                    details = `
+                        <div style="margin-bottom:5px;"><strong>File:</strong> ${escapeHtml(wf.fileName)}</div>
+                        ${wf.content ? renderCollapsibleText(wf.content) : ''}
+                    `;
+                } else if (type === 'online_search') {
+                     details = `<div><strong>Query:</strong> ${escapeHtml(actData.online_search?.query)}</div>`;
+                } else {
+                    details = `<pre style="font-size:0.75rem;">${escapeHtml(JSON.stringify(actData, null, 2))}</pre>`;
+                }
+
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">${escapeHtml(type)}</div>
+                            <div class="status-${status === 'error' ? 'error' : 'pending'}">${status.toUpperCase()}</div>
+                        </div>
+                        <div style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem;">${escapeHtml(act.description || '')}</div>
+                        ${details}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderFiles(files) {
+            if (!files || files.length === 0) return '';
+            const rows = files.map(f => `
+                <tr>
+                    <td>${escapeHtml(f.name || f.id)}</td>
+                    <td>${escapeHtml(f.type || 'unknown')}</td>
+                </tr>
+            `).join('');
+            return `<table class="table-clean"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        // --- Utils ---
+        function showError(msg) {
+            dom.errorBanner.textContent = msg || '';
+            dom.errorBanner.style.display = msg ? 'block' : 'none';
+        }
+
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return text;
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function renderCollapsibleText(text) {
+            if (!text) return '';
+            let formatted = escapeHtml(text).replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>');
+            const isLong = text.length > 300;
+            const id = `txt-${Math.random().toString(36).substr(2, 9)}`;
+            
+            if (!isLong) return `<div class="text-content">${formatted}</div>`;
+            
+            return `
+                <div class="text-content" id="${id}">${formatted}</div>
+                <button class="expand-btn" onclick="toggleText('${id}', this)">Show Full Text</button>
+            `;
+        }
+
+        // Globally accessible toggle function
+        window.toggleText = function(id, btn) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('expanded')) {
+                el.classList.remove('expanded');
+                btn.innerText = "Show Full Text";
+            } else {
+                el.classList.add('expanded');
+                btn.innerText = "Show Less";
+            }
+        };
+
+        window.toggleTitle = function(id, btn) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('collapsed')) {
+                el.classList.remove('collapsed');
+                btn.innerText = "Show Less";
+            } else {
+                el.classList.add('collapsed');
+                btn.innerText = "Show More";
+            }
+        };
+    </script>
+</body>
+</html>
