@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlowithOS Task Timeline Viewer</title>
+    <title>FlowithOS Timeline v3.2</title>
     <style>
         :root {
             /* Light Mode Palette */
             --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 50%, #dbeafe 100%);
-            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-bg: rgba(255, 255, 255, 0.85);
             --glass-border: rgba(255, 255, 255, 0.6);
             --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
             
             --text-primary: #1e293b;
-            --text-secondary: #64748b;
+            --text-secondary: #475569;
+            --text-tertiary: #94a3b8;
             
             --primary: #6366f1; /* Indigo */
             --primary-hover: #4f46e5;
@@ -26,6 +27,10 @@
             --warning: #f59e0b;
             --warning-bg: rgba(245, 158, 11, 0.1);
             
+            --user-msg-bg: rgba(59, 130, 246, 0.1);
+            --user-msg-border: rgba(59, 130, 246, 0.3);
+            --user-msg-text: #2563eb;
+
             --code-bg: #1e293b;
             --code-text: #e2e8f0;
             
@@ -39,16 +44,21 @@
         /* Dark Theme Overrides */
         [data-theme="dark"] {
             --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #172554 100%);
-            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-bg: rgba(30, 41, 59, 0.9);
             --glass-border: rgba(255, 255, 255, 0.1);
             --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
             
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
+            --text-tertiary: #64748b;
             
             --primary: #818cf8;
             --primary-hover: #6366f1;
             
+            --user-msg-bg: rgba(59, 130, 246, 0.15);
+            --user-msg-border: rgba(59, 130, 246, 0.3);
+            --user-msg-text: #60a5fa;
+
             --code-bg: #020617;
         }
 
@@ -60,8 +70,8 @@
             background-attachment: fixed;
             color: var(--text-primary);
             margin: 0;
-            min-height: 100vh; /* Changed from height: 100vh */
-            overflow-y: auto;  /* Allow window scrolling */
+            min-height: 100vh;
+            overflow-y: auto;
             transition: color 0.3s;
         }
 
@@ -87,7 +97,7 @@
             border-bottom: 1px solid var(--glass-border);
             position: sticky;
             top: 0;
-            background: var(--glass-bg); /* Needs BG for sticky to hide content behind */
+            background: var(--glass-bg);
             backdrop-filter: blur(12px);
         }
 
@@ -96,35 +106,31 @@
 
         .header-right { display: flex; gap: 1rem; align-items: center; }
 
-        /* Main Container - Flex Row, but Document Scroll */
+        /* Main Container */
         #app-container {
             display: flex;
-            align-items: flex-start; /* Align items to top for sticky sidebar */
+            align-items: flex-start;
             gap: 1.5rem;
             padding: 1.5rem;
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
             min-height: calc(100vh - var(--header-height));
         }
 
-        /* Sidebar - Sticky */
+        /* Sidebar */
         aside {
             width: 350px;
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
-            
-            /* Sticky Positioning */
             position: sticky;
             top: calc(var(--header-height) + 1.5rem);
             height: calc(100vh - var(--header-height) - 3rem);
-            
-            /* Styling */
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             border-radius: var(--radius-lg);
-            overflow: hidden; /* Contains internal scroll */
+            overflow: hidden;
         }
 
         .sidebar-controls {
@@ -164,7 +170,8 @@
         .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
         .chip.active-error { background: var(--error); color: white; border-color: var(--error); }
         .chip.active-file { background: var(--warning); color: white; border-color: var(--warning); }
-        .chip.active-think { background: #8b5cf6; color: white; border-color: #8b5cf6; }
+        .chip.active-vision { background: #ec4899; color: white; border-color: #ec4899; }
+        .chip.active-user { background: var(--user-msg-text); color: white; border-color: var(--user-msg-text); }
 
         #step-list { 
             overflow-y: auto; 
@@ -180,6 +187,7 @@
             margin-bottom: 0.5rem;
             transition: all 0.2s;
             background: rgba(255,255,255,0.05);
+            position: relative;
         }
         .step-item:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
         .step-item.selected { 
@@ -188,7 +196,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         
-        /* Special styling for the Overview Item */
         .step-item.overview {
             border-left: 4px solid var(--primary);
             background: rgba(255,255,255,0.02);
@@ -206,33 +213,36 @@
             color: var(--text-primary);
             display: -webkit-box;
             -webkit-line-clamp: 2;
-            line-clamp: 2; /* Standard property */
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
 
         .badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
             font-weight: 700;
             margin-left: 4px;
             letter-spacing: 0.02em;
+            text-transform: uppercase;
         }
         .badge-error { background: var(--error-bg); color: var(--error); }
         .badge-file { background: var(--warning-bg); color: var(--warning); }
-        .badge-think { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+        .badge-vision { background: rgba(236, 72, 153, 0.15); color: #ec4899; }
+        .badge-user { background: var(--user-msg-bg); color: var(--user-msg-text); border: 1px solid var(--user-msg-border); }
+        .badge-mode { background: rgba(255,255,255,0.2); border: 1px solid var(--glass-border); color: var(--text-secondary); }
 
         /* --- Main Content Area --- */
         main.content {
             flex: 1;
-            min-width: 0; /* Prevents flex overflow issues */
-            height: auto; /* Allow natural growth */
-            overflow: visible; /* No internal scrollbar */
+            min-width: 0;
+            height: auto;
+            overflow: visible;
         }
 
-        /* Drop Zone Area (Empty State) */
+        /* Drop Zone */
         #drop-zone-container {
             display: flex;
             flex-direction: column;
@@ -245,7 +255,6 @@
             transition: all 0.3s;
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
-            margin-top: 0;
         }
 
         #drop-zone-container.drag-active {
@@ -296,15 +305,32 @@
             box-shadow: var(--glass-shadow);
         }
 
-        .detail-header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem; }
-        .detail-step-id { font-size: 0.875rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .detail-header { margin-bottom: 2rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem; }
+        
+        .detail-meta-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-tag {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+        }
         
         .detail-title { 
-            font-size: 1.75rem; 
-            margin: 0; 
+            font-size: 1.5rem; 
+            margin: 0.5rem 0 0; 
             line-height: 1.3;
         }
-        /* Truncation Logic */
         .detail-title.collapsed {
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -312,8 +338,6 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-
-        /* Show More Button for Title */
         .title-expand-btn {
             background: none;
             border: none;
@@ -327,6 +351,49 @@
             align-items: center;
         }
         .title-expand-btn:hover { text-decoration: underline; }
+
+        .execution-trace-box {
+            background: rgba(99, 102, 241, 0.05);
+            border-left: 3px solid var(--primary);
+            padding: 1rem;
+            margin: 1.5rem 0;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+        }
+        .trace-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        /* User Message Box */
+        .user-message-box {
+            background: var(--user-msg-bg);
+            border: 1px solid var(--user-msg-border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .user-message-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--user-msg-text);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: block;
+            letter-spacing: 0.05em;
+        }
+        .user-message-text {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
 
         .section-title {
             font-size: 0.85rem;
@@ -359,41 +426,206 @@
         }
         .card:hover { background: rgba(255,255,255,0.06); }
 
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-        .card-title { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; gap: 1rem; }
+        .card-title { font-weight: 700; font-size: 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+        .card-subtitle { font-size: 0.8rem; color: var(--text-secondary); font-weight: 400; font-family: monospace; }
 
-        .status-success { color: var(--success); font-weight: 700; font-size: 0.85rem; background: var(--success-bg); padding: 4px 10px; border-radius: 6px; }
-        .status-error { color: var(--error); font-weight: 700; font-size: 0.85rem; background: var(--error-bg); padding: 4px 10px; border-radius: 6px; }
-        .status-pending { color: var(--warning); font-weight: 700; font-size: 0.85rem; background: var(--warning-bg); padding: 4px 10px; border-radius: 6px; }
+        /* Ensure pre tags wrap and don't overflow */
+        .card pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-x: auto;
+            max-width: 100%;
+            background: transparent;
+            margin: 0;
+            padding: 0;
+            color: var(--text-primary);
+            font-family: monospace;
+        }
 
-        /* Code/Text Content */
+        .status-badge { font-weight: 700; font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; white-space: nowrap; }
+        .status-success { color: var(--success); background: var(--success-bg); }
+        .status-error { color: var(--error); background: var(--error-bg); }
+        .status-pending { color: var(--warning); background: var(--warning-bg); }
+        .status-info { color: var(--primary); background: var(--primary-light); }
+
+        /* Action Logs / Timeline within Cards */
+        .action-log-timeline {
+            margin-top: 1rem;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 1rem;
+        }
+        .log-entry {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+        .log-time {
+            font-family: monospace;
+            color: var(--text-tertiary);
+            font-size: 0.75rem;
+            min-width: 60px;
+            text-align: right;
+            padding-top: 2px;
+        }
+        .log-marker {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .log-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            margin-top: 0;
+        }
+        .log-line {
+            flex: 1;
+            width: 1px;
+            background: var(--glass-border);
+            margin-top: 4px;
+            min-height: 10px;
+        }
+        .log-entry:last-child .log-line { display: none; }
+        
+        .log-content { flex: 1; padding-bottom: 0.5rem; }
+        .log-kind { 
+            font-weight: 700; 
+            font-size: 0.7rem; 
+            text-transform: uppercase; 
+            margin-bottom: 2px;
+            color: var(--primary);
+        }
+        .log-message { color: var(--text-primary); line-height: 1.4; }
+        .log-data {
+            margin-top: 0.5rem;
+            background: rgba(0,0,0,0.1);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre-wrap; /* Crucial Fix for displaying indented JSON nicely */
+        }
+
+        /* Generic Code Block */
         .text-content {
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
             font-size: 0.85rem;
             line-height: 1.6;
             white-space: pre-wrap;
             color: var(--text-primary);
-            background: rgba(0,0,0,0.1); /* Slightly darker for contrast */
+            background: rgba(0,0,0,0.05);
             padding: 1rem;
             border-radius: var(--radius-sm);
             border: 1px solid var(--glass-border);
-            
-            /* Logic for expansion */
             max-height: 300px;
             overflow-y: auto;
             transition: max-height 0.3s ease-out;
         }
+        .text-content.expanded { max-height: none !important; overflow: visible; }
+        
+        /* Rendered HTML Elements inside Text Content */
+        .text-content h2 { margin-top: 0; }
 
-        /* IMPORTANT: Override max-height when expanded */
-        .text-content.expanded { 
-            max-height: none !important; 
-            overflow: visible; 
+        /* Specific styles for prettified results */
+        .pretty-result {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 0.9rem;
+        }
+        .pretty-result pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        /* Table Styles for Markdown */
+        .md-table-container {
+            overflow-x: auto;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.03);
+        }
+        .md-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .md-table th {
+            background: rgba(0,0,0,0.1);
+            font-weight: 700;
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid var(--glass-border);
+            color: var(--text-primary);
+        }
+        .md-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+        }
+        .md-table tr:last-child td {
+            border-bottom: none;
+        }
+        .md-table tr:hover {
+            background: rgba(255,255,255,0.05);
         }
 
-        /* Header Summary Bar */
+        /* Skill Card */
+        .skill-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .skill-header {
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .skill-header:hover { background: rgba(255, 255, 255, 0.1); }
+        .skill-body {
+            padding: 1rem;
+            border-top: 1px solid var(--glass-border);
+            display: none;
+            font-size: 0.85rem;
+        }
+        .skill-body.open { display: block; }
+        .skill-meta { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-family: monospace; }
+        
+        .copy-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: rgba(255,255,255,0.2); color: var(--primary); }
+        .copy-btn svg { width: 16px; height: 16px; }
+
+        /* Summary Bar */
         #summary-bar {
             background: transparent;
-            border-right: 1px solid var(--glass-border); /* Vertical separator style */
+            border-right: 1px solid var(--glass-border);
             padding: 0 1.5rem;
             display: none;
             font-size: 0.85rem;
@@ -420,11 +652,8 @@
         .theme-btn:hover { background: rgba(255,255,255,0.2); transform: rotate(15deg); }
         .theme-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
 
-        /* Hidden Input */
-        #file-input { display: none; }
-
         /* Responsive */
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
             #app-container { flex-direction: column; padding: 1rem; gap: 1rem; }
             aside { width: 100%; height: auto; max-height: 300px; position: static; overflow-y: auto; margin-bottom: 1rem; }
             main.content { width: 100%; }
@@ -441,7 +670,6 @@
         .table-clean th { text-align: left; color: var(--text-secondary); font-weight: 600; padding: 0.75rem; border-bottom: 1px solid var(--glass-border); }
         .table-clean td { padding: 0.75rem; border-bottom: 1px solid var(--glass-border); }
 
-        /* Banner */
         #error-banner {
             background: var(--error);
             color: white;
@@ -452,10 +680,10 @@
             display: none;
         }
         
-        /* Nav Replace Button */
         #replace-btn { display: none; font-size: 0.85rem; color: var(--text-secondary); background: transparent; border: 1px solid var(--glass-border); padding: 0.4rem 0.8rem; border-radius: 8px; cursor: pointer; margin-right: 1rem; }
         #replace-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
         #replace-btn.visible { display: inline-block; }
+        #file-input { display: none; }
 
     </style>
 </head>
@@ -465,13 +693,12 @@
 
     <header>
         <div class="header-left">
-            <h1>FlowithOS Timeline</h1>
-            <p>Analyze your task history.</p>
+            <h1>FlowithOS Timeline v3.2</h1>
+            <p>Task Trace Analysis</p>
         </div>
         <div class="header-right">
             
-            <div id="summary-bar">
-                </div>
+            <div id="summary-bar"></div>
 
             <button id="replace-btn" onclick="document.getElementById('file-input').click()">Replace File</button>
             
@@ -489,9 +716,10 @@
                 <input type="text" id="search-box" class="search-box" placeholder="Search steps..." disabled>
                 <div class="filter-chips">
                     <span class="chip active" data-filter="all">All</span>
+                    <span class="chip" data-filter="user">User</span>
                     <span class="chip" data-filter="error">Errors</span>
+                    <span class="chip" data-filter="vision">Vision</span>
                     <span class="chip" data-filter="write">Files</span>
-                    <span class="chip" data-filter="think">Thinking</span>
                 </div>
             </div>
             <div id="step-list">
@@ -508,7 +736,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <div class="upload-title">Upload Task History</div>
-                <div class="upload-subtitle">Drag & Drop your JSON file here or click to browse</div>
+                <div class="upload-subtitle">Drag & Drop your history.v2.json file here</div>
                 
                 <button class="btn-upload" onclick="document.getElementById('file-input').click()">
                     <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right:8px;">
@@ -532,6 +760,9 @@
             searchQuery: '',
             selectedStepIndex: null
         };
+        
+        // Global cache to store skill content for copying
+        window.skillCache = {};
 
         const dom = {
             dropContainer: document.getElementById('drop-zone-container'),
@@ -555,21 +786,20 @@
         dom.themeToggle.addEventListener('click', toggleTheme);
         dom.fileInput.addEventListener('change', (e) => processFile(e.target.files[0]));
         
-        // Search
         dom.searchBox.addEventListener('input', (e) => {
             appState.searchQuery = e.target.value.toLowerCase();
             renderSidebar();
         });
 
-        // Filters
         dom.chips.forEach(chip => {
             chip.addEventListener('click', () => {
-                dom.chips.forEach(c => c.classList.remove('active', 'active-error', 'active-file', 'active-think'));
+                dom.chips.forEach(c => c.classList.remove('active', 'active-error', 'active-file', 'active-vision', 'active-user'));
                 const filterType = chip.dataset.filter;
                 
                 if(filterType === 'error') chip.classList.add('active-error');
                 else if(filterType === 'write') chip.classList.add('active-file');
-                else if(filterType === 'think') chip.classList.add('active-think');
+                else if(filterType === 'vision') chip.classList.add('active-vision');
+                else if(filterType === 'user') chip.classList.add('active-user');
                 else chip.classList.add('active');
 
                 appState.filter = filterType;
@@ -577,16 +807,10 @@
             });
         });
 
-        // Drag & Drop Logic
-        const dragEvents = ['dragenter', 'dragover', 'dragleave', 'drop'];
-        dragEvents.forEach(evt => {
-            document.body.addEventListener(evt, preventDefaults, false);
+        // Drag & Drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            document.body.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
         });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
 
         ['dragenter', 'dragover'].forEach(evt => {
             document.body.addEventListener(evt, () => dom.dropContainer.classList.add('drag-active'), false);
@@ -598,8 +822,7 @@
 
         document.body.addEventListener('drop', (e) => {
             const dt = e.dataTransfer;
-            const file = dt.files[0];
-            processFile(file);
+            processFile(dt.files[0]);
         });
 
         // --- Logic ---
@@ -613,7 +836,6 @@
 
         function processFile(file) {
             if (!file) return;
-
             showError(null);
             dom.searchBox.disabled = true;
             dom.stepList.innerHTML = '<div style="padding:2rem; text-align:center;">Parsing...</div>';
@@ -623,9 +845,8 @@
                 try {
                     const json = JSON.parse(e.target.result);
                     validateAndProcess(json);
-                    // UI Transition
-                    dom.dropContainer.style.display = 'none'; // Hide drop zone
-                    dom.replaceBtn.classList.add('visible'); // Show replace button
+                    dom.dropContainer.style.display = 'none';
+                    dom.replaceBtn.classList.add('visible');
                 } catch (err) {
                     showError(`Failed to parse JSON: ${err.message}`);
                     dom.stepList.innerHTML = '<div style="padding:2rem; text-align:center; color:var(--error);">Parse Error</div>';
@@ -637,17 +858,21 @@
         function validateAndProcess(json) {
             if (!json || typeof json !== 'object') throw new Error("Invalid JSON");
             
-            // Handle array root
+            // Normalize structure
+            let historyArray = [];
             if (Array.isArray(json)) {
                  json = { history: json, instruction: "Unknown (History Only)", id: "unknown" };
-            } else if (!Array.isArray(json.history)) {
+            }
+            if (Array.isArray(json.history)) {
+                historyArray = json.history;
+            } else {
                 throw new Error("JSON missing 'history' array.");
             }
 
             appState.rawJson = json;
             
-            // Process metadata
-            appState.processedSteps = (json.history || []).map((step, index) => {
+            // Process Step Metadata
+            appState.processedSteps = historyArray.map((step, index) => {
                 const s = step || {};
                 const subgoal = (s.subgoal || "").toLowerCase();
                 const actions = Array.isArray(s.actions) ? s.actions : [];
@@ -655,16 +880,16 @@
 
                 const isError = subgoal.includes("error") || 
                                 results.some(r => !r.success || (r.actionName === 'error')) ||
-                                actions.some(a => a.status === 'error');
+                                actions.some(a => a.status === 'error' || a.status === 'failed');
                 
-                const hasDeepThinking = actions.some(a => a.type === 'deep_thinking') ||
-                                        results.some(r => r.actionName === 'deep_thinking');
-                
-                const hasWriteFile = actions.some(a => a.type === 'write_file') ||
-                                     results.some(r => r.actionName === 'write_file');
+                const hasVision = s.mode === 'vision' || actions.some(a => a.type === 'non_dom_vision_mouse_operator');
+                const hasWriteFile = actions.some(a => a.type === 'write_file') || results.some(r => r.actionName === 'write_file');
+                const hasFollowUp = !!s.followUpMessage;
 
                 const searchableText = [
                     s.subgoal,
+                    s.executionTrace,
+                    s.followUpMessage || '',
                     ...results.map(r => r.prompt || JSON.stringify(r)),
                     ...actions.map(a => a.description || JSON.stringify(a))
                 ].join(' ').toLowerCase();
@@ -673,31 +898,38 @@
                     original: s,
                     index: index,
                     stepNumber: s.stepNumber || index + 1,
+                    mode: s.mode || 'unknown',
                     isError,
-                    hasDeepThinking,
+                    hasVision,
                     hasWriteFile,
+                    hasFollowUp,
                     searchableText
                 };
             });
 
             renderSummary();
             dom.searchBox.disabled = false;
-            
-            // Set default selection to Overview (-1) to show instructions first
-            appState.selectedStepIndex = -1;
-            
+            appState.selectedStepIndex = -1; // Default to overview
             renderSidebar();
-            renderTaskOverview(appState.rawJson); // Render overview by default
+            renderTaskOverview(appState.rawJson);
         }
 
         function renderSummary() {
             const data = appState.rawJson;
             const steps = appState.processedSteps;
             const errCount = steps.filter(s => s.isError).length;
+            const finalMode = data.finalMode || 'N/A';
             
+            // Calculate approximate tokens (Char count / 4 heuristic)
+            const fullText = JSON.stringify(data);
+            const approxTokens = Math.round(fullText.length / 4);
+            const tokenDisplay = approxTokens > 1000 ? (approxTokens/1000).toFixed(1) + 'k' : approxTokens;
+
             dom.summaryBar.innerHTML = `
-                <div class="stat-item"><span class="stat-label">Task ID</span><span class="stat-value">${data.id || 'N/A'}</span></div>
+                <div class="stat-item"><span class="stat-label">Est. Tokens</span><span class="stat-value">${tokenDisplay}</span></div>
+                <div class="stat-item"><span class="stat-label">Task ID</span><span class="stat-value" title="${escapeHtml(data.id)}">${escapeHtml(data.id || 'N/A')}</span></div>
                 <div class="stat-item"><span class="stat-label">Steps</span><span class="stat-value">${steps.length}</span></div>
+                <div class="stat-item"><span class="stat-label">Mode</span><span class="stat-value" style="text-transform:capitalize">${finalMode}</span></div>
                 <div class="stat-item"><span class="stat-label">Errors</span><span class="stat-value" style="color:${errCount>0? 'var(--error)' : 'inherit'}">${errCount}</span></div>
             `;
             dom.summaryBar.classList.add('active');
@@ -707,42 +939,31 @@
             const { processedSteps, filter, searchQuery, selectedStepIndex } = appState;
             dom.stepList.innerHTML = '';
 
-            // --- RENDER OVERVIEW ITEM FIRST ---
-            if (appState.rawJson) {
-                const overviewEl = document.createElement('div');
-                overviewEl.className = `step-item overview ${selectedStepIndex === -1 ? 'selected' : ''}`;
-                overviewEl.innerHTML = `
-                    <div class="step-header">
-                        <span class="step-num">TASK OVERVIEW</span>
-                    </div>
-                    <div class="step-preview">${escapeHtml(appState.rawJson.instruction || 'View task instructions')}</div>
-                `;
-                overviewEl.addEventListener('click', () => {
-                    appState.selectedStepIndex = -1;
-                    renderSidebar(); // Update highlights
-                    renderTaskOverview(appState.rawJson);
-                });
-                dom.stepList.appendChild(overviewEl);
-            }
+            // Overview Item
+            const overviewEl = document.createElement('div');
+            overviewEl.className = `step-item overview ${selectedStepIndex === -1 ? 'selected' : ''}`;
+            overviewEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-num">TASK OVERVIEW</span>
+                </div>
+                <div class="step-preview">${escapeHtml(appState.rawJson.instruction || 'View global task context')}</div>
+            `;
+            overviewEl.addEventListener('click', () => {
+                appState.selectedStepIndex = -1;
+                renderSidebar();
+                renderTaskOverview(appState.rawJson);
+            });
+            dom.stepList.appendChild(overviewEl);
 
-            // --- RENDER STEPS ---
+            // Filter Logic
             const visibleSteps = processedSteps.filter(step => {
                 if (filter === 'error' && !step.isError) return false;
                 if (filter === 'write' && !step.hasWriteFile) return false;
-                if (filter === 'think' && !step.hasDeepThinking) return false;
+                if (filter === 'vision' && !step.hasVision) return false;
+                if (filter === 'user' && !step.hasFollowUp) return false;
                 if (searchQuery && !step.searchableText.includes(searchQuery)) return false;
                 return true;
             });
-
-            if (visibleSteps.length === 0) {
-                const msg = document.createElement('div');
-                msg.style.padding = '1rem';
-                msg.style.textAlign = 'center';
-                msg.style.color = 'var(--text-secondary)';
-                msg.textContent = 'No steps match filters.';
-                dom.stepList.appendChild(msg);
-                return;
-            }
 
             visibleSteps.forEach(step => {
                 const el = document.createElement('div');
@@ -750,22 +971,22 @@
                 
                 let badges = '';
                 if (step.isError) badges += `<span class="badge badge-error">ERR</span>`;
-                if (step.hasDeepThinking) badges += `<span class="badge badge-think">THINK</span>`;
+                if (step.hasVision) badges += `<span class="badge badge-vision">VIS</span>`;
                 if (step.hasWriteFile) badges += `<span class="badge badge-file">FILE</span>`;
+                if (step.hasFollowUp) badges += `<span class="badge badge-user">USER</span>`;
+                if (step.mode !== 'unknown') badges += `<span class="badge badge-mode">${step.mode}</span>`;
 
                 el.innerHTML = `
                     <div class="step-header">
                         <span class="step-num">STEP ${step.stepNumber}</span>
                         <span>${badges}</span>
                     </div>
-                    <div class="step-preview">${step.original.subgoal || 'No description'}</div>
+                    <div class="step-preview">${escapeHtml(step.original.subgoal || 'No description')}</div>
                 `;
 
                 el.addEventListener('click', () => {
                     appState.selectedStepIndex = step.index;
-                    // Update selection visual
-                    document.querySelectorAll('.step-item').forEach(i => i.classList.remove('selected'));
-                    el.classList.add('selected');
+                    renderSidebar();
                     renderDetail(step.original);
                 });
 
@@ -773,33 +994,36 @@
             });
         }
 
-        // New Function to render the Overview/Instruction details
         function renderTaskOverview(data) {
             const overviewId = `overview-${Date.now()}`;
-            
+            const stopReason = data.stopReason ? `<span class="status-badge status-info">${data.stopReason}</span>` : '';
+            const tabs = (data.finalOwnedTabIds || []).map(id => `<span class="chip">${id}</span>`).join('');
+
             dom.detailView.innerHTML = `
                 <div class="detail-content-wrapper">
                     <div class="detail-header">
-                        <div class="detail-step-id">TASK METADATA</div>
-                        <h2 class="detail-title">${escapeHtml(data.id || 'Unknown Task ID')}</h2>
-                    </div>
-                    
-                    ${renderSection('Full Instructions', renderCollapsibleText(data.instruction || 'No instruction provided.'))}
-                    
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-top:2rem;">
-                        <div class="card">
-                            <div class="card-header"><div class="card-title">Created At</div></div>
-                            <div style="padding:0 1.5rem 1.5rem;">${data.createdAt ? new Date(data.createdAt).toLocaleString() : 'N/A'}</div>
+                        <div class="detail-meta-row">
+                            <span class="meta-tag">TASK ROOT</span>
+                            <span class="meta-tag">${data.userAgentMode || 'Auto'} Mode</span>
+                            ${stopReason}
                         </div>
-                        <div class="card">
-                            <div class="card-header"><div class="card-title">Agent Mode</div></div>
-                            <div style="padding:0 1.5rem 1.5rem;">${escapeHtml(data.userAgentMode || 'N/A')}</div>
+                        <h2 class="detail-title">${escapeHtml(data.id || 'Unknown ID')}</h2>
+                        <div style="margin-top:0.5rem; color:var(--text-secondary); font-size:0.9rem;">
+                            ${data.createdAt ? new Date(data.createdAt).toLocaleString() : ''}
                         </div>
                     </div>
+                    
+                    ${renderSection('Instruction', formatResultContent(data.instruction))}
+                    
+                    ${data.finalOwnedTabIds && data.finalOwnedTabIds.length ? 
+                        renderSection('Final Active Tabs', `<div class="filter-chips" style="margin-top:0.5rem">${tabs}</div>`) : ''
+                    }
+
+                    ${renderSkills(data.skills, "Global Skills Context")}
 
                     <div style="margin-top:3rem;">
                         <button class="expand-btn" onclick="document.getElementById('${overviewId}').classList.toggle('visible')">
-                            Show/Hide Raw Overview JSON
+                            Show/Hide Raw Root JSON
                         </button>
                         <div id="${overviewId}" class="raw-json-container">
                             <pre style="white-space:pre-wrap; font-size:0.75rem;">${escapeHtml(JSON.stringify(data, (key, value) => (key === 'history' ? '[Steps Array]' : value), 2))}</pre>
@@ -813,28 +1037,47 @@
             const rawJsonID = `raw-${Date.now()}`;
             const titleId = `title-${Date.now()}`;
             
-            // Logic for title truncation
-            const subgoal = step.subgoal || "No Subgoal";
-            const isLong = subgoal.length > 80; 
-            
-            const titleHtml = `<h2 id="${titleId}" class="detail-title ${isLong ? 'collapsed' : ''}">${subgoal}</h2>`;
-            const btnHtml = isLong ? `<button class="title-expand-btn" onclick="toggleTitle('${titleId}', this)">Show More</button>` : '';
+            const titleHtml = `<h2 id="${titleId}" class="detail-title ${step.subgoal.length > 80 ? 'collapsed' : ''}">${escapeHtml(step.subgoal || 'No Subgoal')}</h2>`;
+            const btnHtml = step.subgoal.length > 80 ? `<button class="title-expand-btn" onclick="toggleTitle('${titleId}', this)">Show More</button>` : '';
+
+            // User Follow-up Section
+            const followUpHtml = step.followUpMessage ? 
+                `<div class="user-message-box">
+                    <span class="user-message-label">User Follow-Up</span>
+                    <div class="user-message-text">${escapeHtml(step.followUpMessage)}</div>
+                 </div>` : '';
+
+            // Execution Trace Box
+            const traceHtml = step.executionTrace ? 
+                `<div class="execution-trace-box">
+                    <span class="trace-label">Execution Trace</span>
+                    ${escapeHtml(step.executionTrace)}
+                 </div>` : '';
 
             dom.detailView.innerHTML = `
                 <div class="detail-content-wrapper">
                     <div class="detail-header">
-                        <div class="detail-step-id">Step #${step.stepNumber || '?'}</div>
+                        <div class="detail-meta-row">
+                            <span class="meta-tag">STEP ${step.stepNumber}</span>
+                            <span class="meta-tag" style="background:${step.mode === 'vision' ? 'rgba(236, 72, 153, 0.1)' : ''}">${step.mode} MODE</span>
+                            <span class="meta-tag">ID: ${step.id.substring(0,8)}</span>
+                            ${step.stepReason ? `<span class="meta-tag">Reason: ${step.stepReason}</span>` : ''}
+                        </div>
                         ${titleHtml}
                         ${btnHtml}
                     </div>
 
+                    ${followUpHtml}
+                    ${traceHtml}
+
                     ${renderSection('Results', renderResults(step.results))}
                     ${renderSection('Actions', renderActions(step.actions))}
                     ${renderSection('Files Produced', renderFiles(step.files))}
+                    ${renderSkills(step.skills, "Skills Used in Step")}
                     
                     <div style="margin-top:3rem;">
                         <button class="expand-btn" onclick="document.getElementById('${rawJsonID}').classList.toggle('visible')">
-                            Show/Hide Raw JSON
+                            Show/Hide Raw Step JSON
                         </button>
                         <div id="${rawJsonID}" class="raw-json-container">
                             <pre style="white-space:pre-wrap; font-size:0.75rem;">${escapeHtml(JSON.stringify(step, null, 2))}</pre>
@@ -844,9 +1087,44 @@
             `;
         }
 
+        // --- Render Helpers ---
+
         function renderSection(title, contentHtml) {
             if(!contentHtml) return '';
             return `<h3 class="section-title">${title}</h3><div>${contentHtml}</div>`;
+        }
+
+        function renderSkills(skills, titleOverride) {
+            if (!skills || skills.length === 0) return '';
+            
+            const html = skills.map(skill => {
+                const name = skill.name || skill.item?.name || 'Unknown Skill';
+                const content = skill.content || '';
+                const id = `skill-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // Save to cache for copying
+                window.skillCache[id] = content;
+                
+                return `
+                    <div class="skill-card">
+                        <div class="skill-header" onclick="document.getElementById('${id}').classList.toggle('open')">
+                            <span>📚 ${escapeHtml(name)}</span>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <button class="copy-btn" onclick="copySkillContent(event, '${id}')" title="Copy Skill Content">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                </button>
+                                <span style="font-size:0.8rem; opacity:0.7;">▼</span>
+                            </div>
+                        </div>
+                        <div id="${id}" class="skill-body">
+                            <div class="skill-meta">path: ${escapeHtml(skill.path || skill.item?.path || 'N/A')}</div>
+                            ${formatResultContent(content)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return renderSection(titleOverride || 'Skills', html);
         }
 
         function renderResults(results) {
@@ -855,19 +1133,249 @@
                 const successClass = res.success ? 'status-success' : 'status-error';
                 const successText = res.success ? 'Success' : 'Failed';
                 
-                let content = '';
-                if (res.prompt) content += `<strong>Prompt:</strong>${renderCollapsibleText(res.prompt)}`;
-                
+                let formattedOutput = '';
+                if(res.prompt) {
+                    formattedOutput = `<div><strong>Output:</strong>${formatResultContent(res.prompt)}</div>`;
+                }
+
                 return `
                     <div class="card">
                         <div class="card-header">
-                            <div class="card-title">${escapeHtml(res.actionName || 'Result')}</div>
-                            <div class="${successClass}">${successText}</div>
+                            <div class="card-title">
+                                ${escapeHtml(res.actionName || 'Result')}
+                            </div>
+                            <div class="status-badge ${successClass}">${successText}</div>
                         </div>
-                        ${content}
+                        ${formattedOutput}
                     </div>
                 `;
             }).join('');
+        }
+
+        // Improved output formatting to handle JSON strings and Markdown tables
+        function formatResultContent(text) {
+            if (!text) return '';
+
+            // 1. Check if text looks like the "Result:\n { ... }" JSON blob pattern
+            const jsonSearchMatch = text.match(/Result:\s*\n\s*({[\s\S]*})/);
+            let jsonStr = jsonSearchMatch ? jsonSearchMatch[1] : text;
+
+            // 2. Try parsing as JSON to see if we can render a structured view
+            if (jsonStr.trim().startsWith('{') || jsonStr.trim().startsWith('[')) {
+                try {
+                    const obj = JSON.parse(jsonStr);
+
+                    // --- SPECIAL HANDLER: Online Search Results ---
+                    if (obj.type === 'online_search') {
+                        let combinedHtml = '';
+                        const searchResults = obj.response?.results || obj.results;
+                        
+                        if (Array.isArray(searchResults)) {
+                            const items = searchResults.map(r => {
+                                const snippetHtml = formatResultContent(r.snippet || '');
+                                return `
+                                    <div style="margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px; border: 1px solid var(--glass-border);">
+                                        <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">
+                                            <a href="${escapeHtml(r.url)}" target="_blank" style="text-decoration: none; color: inherit;">${escapeHtml(r.title)}</a>
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 6px; font-family: monospace;">${escapeHtml(r.url)}</div>
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">${snippetHtml}</div>
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            combinedHtml += `
+                                <div class="search-results-renderer">
+                                    <div style="font-size:0.8rem; font-weight:700; margin-bottom:8px; text-transform:uppercase; color:var(--text-secondary);">
+                                        Search Results (${obj.result_count || searchResults.length})
+                                    </div>
+                                    ${items}
+                                </div>
+                            `;
+                        }
+
+                        const summaryText = obj.summary || obj.response?.summary || obj.content;
+                        if (summaryText && typeof summaryText === 'string') {
+                            combinedHtml += `
+                                <div style="margin-top:1.5rem; border-top:1px solid var(--glass-border); padding-top:1rem;">
+                                    <div style="font-size:0.8rem; font-weight:700; margin-bottom:8px; text-transform:uppercase; color:var(--text-secondary);">
+                                        Search Summary
+                                    </div>
+                                    ${formatResultContent(summaryText)}
+                                </div>
+                            `;
+                        }
+
+                        if (combinedHtml) return combinedHtml;
+                    }
+                    
+                    // --- SPECIAL HANDLER: Logs Array (e.g. from Script Use) ---
+                    // If JSON contains a "logs" array, render it as text/markdown instead of raw JSON
+                    if (obj.logs && Array.isArray(obj.logs)) {
+                        return formatResultContent(obj.logs.join('\n'));
+                    }
+                    
+                    // --- CRITICAL CHANGE: DISABLE GENERIC JSON FALLBACK ---
+                    // If it is generic JSON that is NOT one of the special types above,
+                    // do NOT return <pre>. Instead, let it fall through to the
+                    // Markdown/Text parser below. This ensures strings like "**bold**"
+                    // inside the JSON are rendered as Markdown, not code blocks.
+
+                } catch(e) { /* ignore parse error */ }
+            }
+
+            // 3. Markdown Table & Text Parser (Block Splitting)
+            // Fix: split by regex to handle \r\n from Windows/JSON strings correctly
+            const lines = text.split(/\r?\n/);
+            let html = '';
+            let tableBuffer = [];
+            let textBuffer = [];
+            
+            const flushTable = () => {
+                if (tableBuffer.length === 0) return '';
+                
+                // Parse table buffer
+                if (tableBuffer.length < 2) return renderCollapsibleText(tableBuffer.join('\n')); 
+                
+                const headerRow = tableBuffer[0];
+                const separatorRow = tableBuffer[1];
+                
+                // Robust separator check (allows |---| or |:---:| or just ---)
+                if (!/^\|?\s*:?-{2,}/.test(separatorRow)) return renderCollapsibleText(tableBuffer.join('\n'));
+                
+                const headers = headerRow.split('|').map(c => c.trim()).filter(c => c);
+                const bodyRows = tableBuffer.slice(2);
+                
+                let tableHtml = '<div class="md-table-container"><table class="md-table"><thead><tr>';
+                headers.forEach(h => tableHtml += `<th>${escapeHtml(h)}</th>`);
+                tableHtml += '</tr></thead><tbody>';
+                
+                bodyRows.forEach(row => {
+                    // Split by pipe, but filter empty first/last only if they are empty
+                    const cells = row.split('|').map(c => c.trim());
+                    // Remove first/last if empty (standard markdown table syntax)
+                    if (cells.length > 0 && cells[0] === '') cells.shift();
+                    if (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
+
+                    if (cells.length) {
+                        tableHtml += '<tr>';
+                        cells.forEach(c => tableHtml += `<td>${escapeHtml(c)}</td>`);
+                        tableHtml += '</tr>';
+                    }
+                });
+                
+                tableHtml += '</tbody></table></div>';
+                return tableHtml;
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Improved Table Detection Logic
+                const hasPipeStart = line.startsWith('|');
+                const pipeCount = (line.match(/\|/g) || []).length;
+                const looksLikeTable = (hasPipeStart && pipeCount >= 1) || /^\|?[:\s-]{2,}\|?$/.test(line);
+
+                if (looksLikeTable) {
+                    // If we were accumulating text, flush it now
+                    if (textBuffer.length > 0) {
+                        html += renderCollapsibleText(textBuffer.join('\n'));
+                        textBuffer = [];
+                    }
+                    tableBuffer.push(line);
+                } else {
+                    // If we were accumulating table, flush it now
+                    if (tableBuffer.length > 0) {
+                        html += flushTable();
+                        tableBuffer = [];
+                    }
+                    textBuffer.push(line);
+                }
+            }
+            
+            // Flush remaining buffers
+            if (tableBuffer.length > 0) html += flushTable();
+            if (textBuffer.length > 0) html += renderCollapsibleText(textBuffer.join('\n'));
+            
+            return html;
+        }
+
+        function renderCollapsibleText(text) {
+            if (!text) return '';
+            
+            // 1. Escape HTML
+            let safe = escapeHtml(text);
+
+            // 2. HEADER FIX: Pre-process headers embedded in text (e.g. "text... ## Header")
+            safe = safe.replace(/([^\n])\s+(#{2,6}\s)/g, '$1\n$2');
+
+            // 3. Formatting Regexes
+            // Bold (**text**)
+            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Headers (## Text or ### Text)
+            safe = safe.replace(/^###\s*(.*$)/gm, '<h3 style="font-size:1rem; margin-top:1em; margin-bottom:0.5em; color:var(--primary);">$1</h3>');
+            safe = safe.replace(/^##\s*(.*$)/gm, '<h2 style="font-size:1.1rem; margin-top:1.2em; margin-bottom:0.5em; border-bottom:1px solid var(--glass-border); padding-bottom:5px;">$1</h2>');
+            
+            // Italics (*text*)
+            safe = safe.replace(/([^*]|^)\*([^*]+)\*/g, '$1<em>$2</em>');
+
+            const isLong = text.length > 300;
+            const id = `txt-${Math.random().toString(36).substr(2, 9)}`;
+            
+            if (!isLong) return `<div class="text-content">${safe}</div>`;
+            
+            return `
+                <div class="text-content" id="${id}">${safe}</div>
+                <button class="expand-btn" onclick="toggleText('${id}', this)">Show Full Text</button>
+            `;
+        }
+
+        // Helper to recursively parse JSON strings inside objects
+        function tryParseJSON(str) {
+            if (typeof str !== 'string') return null;
+            const trimmed = str.trim();
+            
+            // Aggressive Recursion: Try to parse stringified JSON (including double encoded)
+            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+                (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                try {
+                    const parsed = JSON.parse(str);
+                    // Check if the result is ALSO a string that looks like JSON, if so, recurse
+                    if (typeof parsed === 'string') {
+                         const deeper = tryParseJSON(parsed);
+                         return deeper ? deeper : parsed; 
+                    }
+                    return parsed;
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        function deepParseJsonStrings(obj) {
+            if (obj === null) return obj;
+            
+            // If it's a string, try to parse it (Handle root strings)
+            if (typeof obj === 'string') {
+                 const parsed = tryParseJSON(obj);
+                 return parsed ? deepParseJsonStrings(parsed) : obj;
+            }
+
+            if (typeof obj !== 'object') {
+                return obj;
+            }
+            
+            if (Array.isArray(obj)) {
+                return obj.map(item => deepParseJsonStrings(item));
+            }
+            
+            const newObj = {};
+            for (const key in obj) {
+                newObj[key] = deepParseJsonStrings(obj[key]);
+            }
+            return newObj;
         }
 
         function renderActions(actions) {
@@ -875,34 +1383,135 @@
             return actions.map(act => {
                 const type = act.type || 'Action';
                 const status = act.status || 'pending';
-                const actData = act.action || {};
+                const actDetails = act.action ? act.action[type] || act.action : {}; 
                 
-                let details = '';
-                if (type === 'deep_thinking') {
-                    details = `<div style="margin-bottom:8px; font-weight:600;">Instructions:</div>${renderCollapsibleText(actData.deep_thinking?.instructions)}`;
-                } else if (type === 'write_file') {
-                    const wf = actData.write_file || {};
-                    details = `
-                        <div style="margin-bottom:5px;"><strong>File:</strong> ${escapeHtml(wf.fileName)}</div>
-                        ${wf.content ? renderCollapsibleText(wf.content) : ''}
-                    `;
-                } else if (type === 'online_search') {
-                     details = `<div><strong>Query:</strong> ${escapeHtml(actData.online_search?.query)}</div>`;
-                } else {
-                    details = `<pre style="font-size:0.75rem;">${escapeHtml(JSON.stringify(actData, null, 2))}</pre>`;
+                let detailHtml = '';
+                let logsHtml = '';
+
+                // Handle Specific Action Types
+                if (type === 'non_dom_vision_mouse_operator') {
+                    detailHtml = `<div style="margin-bottom:8px;"><strong>Goal:</strong> ${escapeHtml(actDetails.goal || '')}</div>
+                                  <div><strong>Tab:</strong> ${escapeHtml(actDetails.tabId || 'N/A')}</div>`;
+                    logsHtml = renderActionLogs(act.logs);
+                } 
+                else if (type === 'script_use') {
+                    detailHtml = `<div style="margin-bottom:8px;"><strong>Task:</strong> ${escapeHtml(actDetails.task || '')}</div>
+                                  <div><strong>Lang:</strong> ${escapeHtml(actDetails.language || '')}</div>`;
+                    logsHtml = renderActionLogs(act.logs);
                 }
+                else if (type === 'go_to_url') {
+                    detailHtml = `<strong>URL:</strong> <a href="${actDetails.url}" target="_blank" style="color:var(--primary)">${escapeHtml(actDetails.url)}</a>`;
+                }
+                else if (type === 'click_element') {
+                    detailHtml = `<strong>Element ID:</strong> ${actDetails.elementId} (Tab: ${actDetails.tabId})`;
+                }
+                else if (type === 'send_keys') {
+                    detailHtml = `<strong>Keys:</strong> <kbd style="background:var(--text-primary); color:var(--bg-gradient); padding:2px 4px; border-radius:4px;">${escapeHtml(actDetails.keys)}</kbd> (Tab: ${actDetails.tabId})`;
+                }
+                else if (type === 'mark_tabs') {
+                    detailHtml = `<strong>Tabs Marked:</strong> ${JSON.stringify(actDetails.tabIds)}`;
+                }
+                else if (type === 'deep_thinking') {
+                     detailHtml = `<strong>Instructions:</strong> ${renderCollapsibleText(actDetails.instructions)}`;
+                }
+                else if (type === 'write_file' || type === 'replace_file_str') {
+                    detailHtml = `<strong>File:</strong> ${escapeHtml(actDetails.fileName || actDetails.fileId)}<br>
+                                  <div style="margin-top:5px; font-size:0.8rem; color:var(--text-secondary);">Content/Change:</div>
+                                  ${renderCollapsibleText(actDetails.content || actDetails.newStr || '')}`;
+                }
+                else if (type === 'webpage_creator') {
+                    detailHtml = `<strong>Instructions:</strong> ${renderCollapsibleText(actDetails.instructions)}<br>
+                                  <strong>Base Dir:</strong> ${escapeHtml(actDetails.baseDir || '')}`;
+                }
+                else if (type === 'extract_structured_data') {
+                    detailHtml = `<strong>Query:</strong> ${escapeHtml(actDetails.query)}<br>
+                                  <strong>Save To:</strong> ${escapeHtml(actDetails.fileName)}`;
+                }
+                else if (type === 'online_search') {
+                    detailHtml = `<strong>Query:</strong> ${escapeHtml(actDetails.query)}<br>
+                                  <strong>Save To:</strong> ${escapeHtml(actDetails.fileName)}`;
+                }
+                else {
+                    // Fallback for generic actions: Try to render Key-Value pairs nicely
+                    if (typeof actDetails === 'object' && actDetails !== null) {
+                        const keys = Object.keys(actDetails);
+                        if (keys.length > 0) {
+                            const listHtml = keys.map(k => `<div><strong style="color:var(--text-secondary); font-size:0.8rem;">${k}:</strong> ${escapeHtml(JSON.stringify(actDetails[k]))}</div>`).join('');
+                            detailHtml = `<div style="display:flex; flex-direction:column; gap:0.5rem;">${listHtml}</div>`;
+                        } else {
+                            detailHtml = `<pre style="font-size:0.75rem;">${escapeHtml(JSON.stringify(actDetails, null, 2))}</pre>`;
+                        }
+                    } else {
+                        detailHtml = `<pre style="font-size:0.75rem; white-space:pre-wrap; word-break:break-word;">${escapeHtml(JSON.stringify(actDetails, null, 2))}</pre>`;
+                    }
+                }
+
+                // Status Badge Color
+                let statusClass = 'status-pending';
+                if(status === 'complete' || status === 'success') statusClass = 'status-success';
+                if(status === 'error' || status === 'failed') statusClass = 'status-error';
+                if(status === 'executing') statusClass = 'status-info';
 
                 return `
                     <div class="card">
                         <div class="card-header">
-                            <div class="card-title">${escapeHtml(type)}</div>
-                            <div class="status-${status === 'error' ? 'error' : 'pending'}">${status.toUpperCase()}</div>
+                            <div class="card-title">
+                                ${escapeHtml(type)}
+                                <span class="card-subtitle">${act.id.split('-')[0]}...</span>
+                            </div>
+                            <div class="status-badge ${statusClass}">${status.toUpperCase()}</div>
                         </div>
-                        <div style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem;">${escapeHtml(act.description || '')}</div>
-                        ${details}
+                        <div style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem; font-style:italic;">
+                            "${escapeHtml(act.description || '')}"
+                        </div>
+                        ${detailHtml}
+                        ${logsHtml}
                     </div>
                 `;
             }).join('');
+        }
+
+        function renderActionLogs(logs) {
+            if (!logs || !Array.isArray(logs) || logs.length === 0) return '';
+            
+            // Sort logs by timestamp if available
+            const sortedLogs = logs.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
+            const startTime = sortedLogs[0]?.timestamp || 0;
+
+            const entries = sortedLogs.map(log => {
+                const offset = log.timestamp ? `+${((log.timestamp - startTime) / 1000).toFixed(1)}s` : '';
+                
+                // Try to clean up the data display
+                let displayData = null;
+                if (log.data) {
+                    // Try parsing root first (if it's a string masquerading as JSON)
+                    // Then recursively parse deep strings
+                    displayData = deepParseJsonStrings(log.data);
+                } else if (log.message && (log.message.trim().startsWith('{') || log.message.trim().startsWith('['))) {
+                    // If data is empty but message looks like JSON, try parsing that
+                    const potentialJson = deepParseJsonStrings(log.message);
+                    if (potentialJson !== log.message) {
+                         displayData = potentialJson;
+                    }
+                }
+                
+                return `
+                    <div class="log-entry">
+                        <div class="log-time">${offset}</div>
+                        <div class="log-marker">
+                            <div class="log-dot"></div>
+                            <div class="log-line"></div>
+                        </div>
+                        <div class="log-content">
+                            <div class="log-kind">${log.kind}</div>
+                            <div class="log-message">${formatResultContent(log.message || '')}</div>
+                            ${displayData ? `<div class="log-data">${escapeHtml(JSON.stringify(displayData, null, 2))}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `<div class="action-log-timeline">${entries}</div>`;
         }
 
         function renderFiles(files) {
@@ -923,25 +1532,12 @@
         }
 
         function escapeHtml(text) {
-            if (typeof text !== 'string') return text;
+            if (typeof text !== 'string') return text || '';
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
+        
+        // --- Interactions ---
 
-        function renderCollapsibleText(text) {
-            if (!text) return '';
-            let formatted = escapeHtml(text).replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>');
-            const isLong = text.length > 300;
-            const id = `txt-${Math.random().toString(36).substr(2, 9)}`;
-            
-            if (!isLong) return `<div class="text-content">${formatted}</div>`;
-            
-            return `
-                <div class="text-content" id="${id}">${formatted}</div>
-                <button class="expand-btn" onclick="toggleText('${id}', this)">Show Full Text</button>
-            `;
-        }
-
-        // Globally accessible toggle function
         window.toggleText = function(id, btn) {
             const el = document.getElementById(id);
             if (el.classList.contains('expanded')) {
@@ -962,6 +1558,24 @@
                 el.classList.add('collapsed');
                 btn.innerText = "Show More";
             }
+        };
+
+        window.copySkillContent = function(event, id) {
+            event.stopPropagation();
+            const content = window.skillCache[id] || '';
+            if(!content) return;
+            
+            navigator.clipboard.writeText(content).then(() => {
+                const btn = event.currentTarget;
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<span style="font-size:10px; font-weight:700; color:var(--success);">COPIED</span>`;
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                }, 1500);
+            }).catch(err => {
+                console.error("Failed to copy", err);
+                alert("Failed to copy to clipboard");
+            });
         };
     </script>
 </body>
